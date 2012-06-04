@@ -30,6 +30,9 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
 
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
@@ -87,8 +90,14 @@ public class SniqueActivity extends Activity {
 	}
 
 	private void displayData(String message) {
-		this.setTitle(message);
-		Toast.makeText(getApplicationContext(), "Hidden message: " + message, Toast.LENGTH_LONG).show();
+		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+		Notification notification = new Notification();
+		notification.when = System.currentTimeMillis();
+		notification.defaults = Notification.DEFAULT_ALL;
+		notification.flags = Notification.FLAG_AUTO_CANCEL;
+		notification.icon = R.drawable.ic_launcher;
+		notification.setLatestEventInfo(getApplicationContext(), "snique", message, null);
+		notificationManager.notify(1, notification);
 	}
 
 	public void resetTitle() {
