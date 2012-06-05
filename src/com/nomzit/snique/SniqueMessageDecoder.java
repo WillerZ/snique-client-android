@@ -48,8 +48,12 @@ public class SniqueMessageDecoder
 		try
 		{
 			IvParameterSpec ivspec = new IvParameterSpec(ivRaw);
-			cipher.init(Cipher.DECRYPT_MODE, keySpec, ivspec);
-			byte[] decrypted = cipher.doFinal(coded);
+			byte[] decrypted = null;
+			synchronized(cipher)
+			{
+				cipher.init(Cipher.DECRYPT_MODE, keySpec, ivspec);
+				decrypted = cipher.doFinal(coded);
+			}
 			if ((decrypted[0] == eyecatcher[0]) && (decrypted[1] == eyecatcher[1]) && (decrypted[2] == eyecatcher[2]) && (decrypted[3] == eyecatcher[3]))
 			{
 				int length = 0;
