@@ -9,12 +9,14 @@ import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.security.InvalidKeyException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.http.Header;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
@@ -76,22 +78,23 @@ public class SniqueActivity extends Activity {
 		}
 	}
 
-	private void displayData(String message) {
+	private void displayData(SniqueMessage message)
+	{
 		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 		Notification notification = new Notification();
 		notification.when = System.currentTimeMillis();
 		notification.defaults = Notification.DEFAULT_ALL;
 		notification.flags = Notification.FLAG_AUTO_CANCEL;
-		notification.icon = R.drawable.ic_launcher;
-		notification.setLatestEventInfo(getApplicationContext(), "snique", message, null);
-		notificationManager.notify(1, notification);
+		notification.icon = R.drawable.statusbar;
+		notification.setLatestEventInfo(getApplicationContext(), "snique", message.getMessage(), null);
+		notificationManager.notify(message.getId(), notification);
 	}
 
 	public void resetTitle() {
 		this.setTitle(R.string.app_name);
 	}
 
-	public String decodeData(String html) throws InvalidKeyException, NoMessageException, WillNeverWorkException
+	public SniqueMessage decodeData(String html) throws InvalidKeyException, NoMessageException, WillNeverWorkException
 	{
 		Log.d("SniqueActivity", "decodeData");
 		Pattern findsrc = Pattern.compile("src\\s*=\\s*['\"]([^']*)['\"]");
@@ -307,19 +310,53 @@ public class SniqueActivity extends Activity {
 		return decoder.decodeMessage(message);
 	}
 
-	protected class NetworkTask extends AsyncTask<String, Void, String> {
+	protected class NetworkTask extends AsyncTask<String, Void, SniqueMessage>
+	{
 		@Override
-		protected String doInBackground(String... params) {
+		protected SniqueMessage doInBackground(String... params)
+		{
 			// Retrieve HTML source from URL being loaded
 			String url = params[0];
 			String html = null;
-			try {
+			String mimeType = "text/html";
+			String charSet = "US-ASCII";
+			try
+			{
 				HttpClient client = new DefaultHttpClient();
 				HttpGet request = new HttpGet(url);
 				HttpResponse response = client.execute(request);
+				Header headers[] = response.getHeaders("content-type");
+				for (Header contentType: headers)
+				{
+					String value = contentType.getValue();
+					
+					Pattern findMime = Pattern.compile("\\s*([^;\\s]*)");
+					Matcher mimeMatcher = findMime.matcher(value);
+					boolean hasMime = mimeMatcher.find();
+					if (hasMime)
+					{
+						mimeType = mimeMatcher.group(1);
+					}
+					else
+					{
+						Log.i("SniqueActivity", "No MIME type in response for url "+ url);
+					}
+
+					Pattern findCharset = Pattern.compile(";\\s*charset\\s*=\\s*([^;\\s]*)");
+					Matcher charsetMatcher = findCharset.matcher(value);
+					boolean hasCharset = charsetMatcher.find();
+					if (hasCharset)
+					{
+						charSet = charsetMatcher.group(1);
+					}
+					else
+					{
+						Log.i("SniqueActivity", "No character set in response for url "+ url);
+					}
+				}
 
 				InputStream in = response.getEntity().getContent();
-				BufferedReader reader = new BufferedReader(new InputStreamReader(in));
+				BufferedReader reader = new BufferedReader(new InputStreamReader(in,Charset.forName(charSet)));
 				StringBuilder str = new StringBuilder();
 				String line = null;
 				while ((line = reader.readLine()) != null) {
@@ -327,20 +364,22 @@ public class SniqueActivity extends Activity {
 				}
 				in.close();
 				html = str.toString();
-			} catch (IOException ioe) {
+			}
+			catch (IOException ioe)
+			{
 				ioe.printStackTrace();
 			}
 
-			if (html == null) {
+			if (html == null)
+			{
 				return null;
 			}
 
 			// Display page in WebView
-			// TODO: Remove hard-coded mime-type and encoding values!
-			wv.loadDataWithBaseURL(url, html, "text/html", "US-ASCII", null);
+			wv.loadDataWithBaseURL(url, html, mimeType, charSet, null);
 
 			// Check for data to decode
-			String data = null;
+			SniqueMessage data = null;
 			try
 			{
 				data = decodeData(html);
@@ -361,7 +400,7 @@ public class SniqueActivity extends Activity {
 		}
 
 		@Override
-		protected void onPostExecute(String message) {
+		protected void onPostExecute(SniqueMessage message) {
 			if (message != null) {
 				// We have a decoded message, return to UI thread
 				displayData(message);

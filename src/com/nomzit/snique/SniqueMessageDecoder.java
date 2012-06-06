@@ -1,5 +1,6 @@
 package com.nomzit.snique;
 
+import java.io.UnsupportedEncodingException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -43,7 +44,7 @@ public class SniqueMessageDecoder
 		Log.d("SniqueMessageDecoder", "Block size is " + blockSize);
 	}
 	
-	private String decodeMessage(byte[] ivRaw, byte[] coded) throws NoMessageException, WillNeverWorkException, InvalidKeyException
+	private SniqueMessage decodeMessage(byte[] ivRaw, byte[] coded) throws NoMessageException, WillNeverWorkException, InvalidKeyException
 	{
 		try
 		{
@@ -57,20 +58,34 @@ public class SniqueMessageDecoder
 			if ((decrypted[0] == eyecatcher[0]) && (decrypted[1] == eyecatcher[1]) && (decrypted[2] == eyecatcher[2]) && (decrypted[3] == eyecatcher[3]))
 			{
 				int length = 0;
-				Log.d("SniqueMessageDecoder", "Eyecatcher matched");
+//				Log.d("SniqueMessageDecoder", "Eyecatcher matched");
 				length = (decrypted[4] << 24) | (decrypted[5] << 16) | (decrypted[6] << 8) | decrypted[7];
-				Log.d("SniqueMessageDecoder", "Length is " + length);
-				Log.d("SniqueMessageDecoder", "Decrypted message length is " + (decrypted.length - 8));
+//				Log.d("SniqueMessageDecoder", "Length is " + length);
+//				Log.d("SniqueMessageDecoder", "Decrypted message length is " + (decrypted.length - 8));
 				if ((length + 8) < decrypted.length)
 				{
 					byte decodedMessage[] = new byte[length];
 					for (int i = 0; i < decodedMessage.length; ++i)
 						decodedMessage[i] = decrypted[8 + i];
-					String theMessage = new String(decodedMessage);
-					Log.d("SniqueMessageDecoder", "Hidden message is " + theMessage);
-
+					String theMessage;
+					try
+					{
+						theMessage = new String(decodedMessage,"UTF-8");
+					}
+					catch (UnsupportedEncodingException e)
+					{
+						throw new WillNeverWorkException(e);
+					}
+//					Log.d("SniqueMessageDecoder", "Hidden message is " + theMessage);
+					int id = ivRaw[0];
+					id <<= 8;
+					id |= ivRaw[1];
+					id <<= 8;
+					id |= ivRaw[2];
+					id <<= 8;
+					id |= ivRaw[3];
 					// Return decoded message back to main thread.
-					return theMessage;
+					return new SniqueMessage(id,theMessage);
 				}
 			}
 			return null;
@@ -115,7 +130,7 @@ public class SniqueMessageDecoder
 		return out;
 	}
 
-	public String decodeMessage(byte[][] coded) throws NoMessageException, WillNeverWorkException, InvalidKeyException
+	public SniqueMessage decodeMessage(byte[][] coded) throws NoMessageException, WillNeverWorkException, InvalidKeyException
 	{
 		byte ivRaw[] = new byte[blockSize];
 		outer:
@@ -136,7 +151,7 @@ public class SniqueMessageDecoder
 			byte flat[] = flattenArray(remCoded,blockSize);
 			if (flat.length == 0)
 				break outer;
-			String decoded = decodeMessage(ivRaw,flat);
+			SniqueMessage decoded = decodeMessage(ivRaw,flat);
 			if (decoded != null)
 				return decoded;
 		}
