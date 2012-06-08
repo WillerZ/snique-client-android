@@ -1,5 +1,8 @@
 package com.nomzit.snique;
 
+import static com.nomzit.snique.Utilities.subArrayOfArrayFromIndexClippedToMultiple;
+import static com.nomzit.snique.Utilities.subArrayOfArrayToIndex;
+
 import java.io.UnsupportedEncodingException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -40,8 +43,7 @@ public class SniqueMessageDecoder
 			throw new WillNeverWorkException(e);
 		}
 
-		blockSize = key.length;
-		Log.d("SniqueMessageDecoder", "Block size is " + blockSize);
+		blockSize = 16;
 	}
 	
 	private SniqueMessage decodeMessage(byte[] ivRaw, byte[] coded) throws NoMessageException, WillNeverWorkException, InvalidKeyException
@@ -107,50 +109,14 @@ public class SniqueMessageDecoder
 		}
 	}
 	
-	private static byte[][] arrayByRemovingFirstItem(byte[][] arr)
+	public SniqueMessage decodeMessage(CodedMessage coded) throws NoMessageException, WillNeverWorkException, InvalidKeyException
 	{
-		byte out[][] = new byte[arr.length - 1][];
-		for (int i = 1; i<arr.length; ++i)
-			out[i-1] = arr[i];
-		return out;
-	}
-	
-	private static byte[] flattenArray(byte[][] arr, int multipleOf)
-	{
-		int total = 0;
-		for (byte[] a : arr)
-			total += a.length;
-		total /= multipleOf;
-		total *= multipleOf;
-		byte out[] = new byte[total];
-		int outIndex = 0;
-		for (byte[] a : arr)
-			for (int i=0; i<a.length && outIndex < out.length;++i,++outIndex)
-				out[outIndex] = a[i];
-		return out;
-	}
-
-	public SniqueMessage decodeMessage(byte[][] coded) throws NoMessageException, WillNeverWorkException, InvalidKeyException
-	{
-		byte ivRaw[] = new byte[blockSize];
-		outer:
-		while (coded.length > 0)
+		for (byte candidate[]:coded)
 		{
-			int ivIndex = 0;
-			byte remCoded[][] = coded;
-			coded = arrayByRemovingFirstItem(coded);
-			while (ivIndex < blockSize)
-			{
-				byte first[] = remCoded[0];
-				remCoded = arrayByRemovingFirstItem(remCoded);
-				if (remCoded.length == 0)
-					break outer;
-				for (int i = 0; i < first.length && ivIndex < blockSize; ++i, ++ivIndex)
-					ivRaw[ivIndex] = first[i];
-			}
-			byte flat[] = flattenArray(remCoded,blockSize);
-			if (flat.length == 0)
-				break outer;
+			if (candidate.length < blockSize * 2)
+				break;
+			byte ivRaw[] = subArrayOfArrayToIndex(candidate, blockSize);
+			byte flat[] = subArrayOfArrayFromIndexClippedToMultiple(candidate, blockSize, blockSize);
 			SniqueMessage decoded = decodeMessage(ivRaw,flat);
 			if (decoded != null)
 				return decoded;
