@@ -25,6 +25,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicHeader;
 
 import android.app.Activity;
 import android.app.Notification;
@@ -197,6 +198,8 @@ public class SniqueActivity extends Activity {
 			{
 				HttpClient client = new DefaultHttpClient();
 				HttpGet request = new HttpGet(url);
+				Header acceptEncoding = new BasicHeader("Accept-Encoding","gzip;q=1.0, identity;q=0.5, deflate;q=0.1, *;q=0");
+				request.setHeader(acceptEncoding);
 				HttpResponse response = client.execute(request);
 				Header headers[] = response.getHeaders("content-type");
 				for (Header contentType: headers)
@@ -229,28 +232,24 @@ public class SniqueActivity extends Activity {
 				}
 				
 				boolean hasGzip = false;
-				boolean hasCompress = false;
 				boolean hasDeflate = false;
 				headers = response.getHeaders("content-encoding");
 				for (Header contentEncoding: headers)
 				{
 					String value = contentEncoding.getValue();
-					Log.i("SniqueActivity", "content-encoding: "+ value);
 					
 					Pattern findGzip = Pattern.compile("\\s*(gzip)",Pattern.CASE_INSENSITIVE);
 					Matcher gzipMatcher = findGzip.matcher(value);
 					hasGzip = gzipMatcher.find();
 					Log.i("SniqueActivity", "gzip content-encoding? "+ hasGzip);
 
-					Pattern findCompress = Pattern.compile("\\s*(compress)",Pattern.CASE_INSENSITIVE);
-					Matcher compressMatcher = findCompress.matcher(value);
-					hasCompress = compressMatcher.find();
-					Log.i("SniqueActivity", "compress content-encoding? "+ hasCompress);
-
 					Pattern findDeflate = Pattern.compile("\\s*(deflate)",Pattern.CASE_INSENSITIVE);
 					Matcher deflateMatcher = findDeflate.matcher(value);
 					hasDeflate = deflateMatcher.find();
 					Log.i("SniqueActivity", "deflate content-encoding? "+ hasDeflate);
+					
+					if (!(hasGzip || hasDeflate))
+						Log.e("SniqueActivity", "Cannot process content-encoding: "+ value);
 				}
 
 				InputStream in = response.getEntity().getContent();
