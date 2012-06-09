@@ -21,21 +21,25 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.InflaterInputStream;
 
 import org.apache.http.Header;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicHeader;
 
 import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.Log;
 import android.webkit.CacheManager;
 import android.webkit.WebView;
@@ -99,11 +103,13 @@ public class SniqueActivity extends Activity {
 		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 		Notification notification = new Notification();
 		notification.when = System.currentTimeMillis();
-		notification.defaults = Notification.DEFAULT_ALL;
+		notification.defaults = 0;
 		notification.flags = Notification.FLAG_AUTO_CANCEL;
 		notification.icon = R.drawable.statusbar;
-		notification.setLatestEventInfo(getApplicationContext(), "snique", message.getMessage(), null);
+		PendingIntent pi = PendingIntent.getBroadcast(this, 2, getIntent(), 0);
+		notification.setLatestEventInfo(this, "snique", message.getMessage(), pi);
 		notificationManager.notify(message.getId(), notification);
+		pi.cancel();
 	}
 
 	public void resetTitle() {
@@ -197,6 +203,15 @@ public class SniqueActivity extends Activity {
 			try
 			{
 				HttpClient client = new DefaultHttpClient();
+				String proxyString = Settings.Secure.getString(getApplicationContext().getContentResolver(),                                                     Settings.Secure.HTTP_PROXY);
+				 
+				if (proxyString != null)
+				{      
+				        String proxyAddress = proxyString.split(":")[0];
+				        int proxyPort = Integer.parseInt(proxyString.split(":")[1]);
+				        HttpHost proxy = new HttpHost(proxyAddress,proxyPort);
+				        client.getParams().setParameter(ConnRoutePNames.DEFAULT_PROXY, proxy);
+				}
 				HttpGet request = new HttpGet(url);
 				Header acceptEncoding = new BasicHeader("Accept-Encoding","gzip;q=1.0, identity;q=0.5, deflate;q=0.1, *;q=0");
 				request.setHeader(acceptEncoding);
