@@ -20,6 +20,7 @@
             </intent-filter>
         </activity>
         <service android:name="DestroySniqueNotificationService" android:enabled="true" android:icon="@drawable/statusbar" android:exported="false"></service>
+        <service android:name="LookForSniqueMessageService" android:enabled="true" android:icon="@drawable/statusbar" android:exported="true"></service>
     </application>
 
 </manifest>

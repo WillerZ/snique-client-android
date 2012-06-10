@@ -8,19 +8,28 @@ public class SniqueWebViewClient extends WebViewClient {
 
 	SniqueActivity activity;
 
-	public boolean shouldOverrideUrlLoading(WebView view, String url) {
+	public boolean shouldOverrideUrlLoading(WebView view, String url)
+	{
 		// If we get here, someone's followed a link in our WebView, and we need to parse the data.
 		activity.new NetworkTask().execute(url);
 		return true;
 	}
 
-	public SniqueWebViewClient(SniqueActivity act) {
+	public SniqueWebViewClient(SniqueActivity act)
+	{
 		super();
 		activity = act;
 	}
 
 	@Override
-	public void onPageStarted(WebView view, String url, Bitmap favicon) {
+	public void onPageStarted(WebView view, String url, Bitmap favicon) 
+	{
 		activity.pageLoading(this, favicon);
+	}
+	
+	@Override
+	public void onPageFinished(WebView view, String url)
+	{
+		activity.resetTitle();
 	}
 }

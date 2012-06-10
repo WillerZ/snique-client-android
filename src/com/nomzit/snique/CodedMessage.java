@@ -2,8 +2,13 @@ package com.nomzit.snique;
 
 import java.util.Iterator;
 
+import android.os.Bundle;
+
 public class CodedMessage implements Iterable<byte[]>
 {
+	private static final String MESSAGE_INDEXES = "indexes";
+	private static final String MESSAGE_BYTES = "bytes";
+
 	private int[] indexes;
 	private byte bytes[];
 	
@@ -26,6 +31,21 @@ public class CodedMessage implements Iterable<byte[]>
 		}
 	}
 	
+	public CodedMessage(Bundle bundle)
+	{
+		super();
+		byte bytes[] = bundle.getByteArray(MESSAGE_BYTES);
+		int indexes[] = bundle.getIntArray(MESSAGE_INDEXES);
+		this.bytes = bytes;
+		this.indexes = indexes;
+	}
+	
+	public void addToBundle(Bundle bundle)
+	{
+		bundle.putByteArray(MESSAGE_BYTES, bytes);
+		bundle.putIntArray(MESSAGE_INDEXES, indexes);
+	}
+
 	public Iterator<byte[]> iterator()
 	{
 		return new Iterator<byte[]>()

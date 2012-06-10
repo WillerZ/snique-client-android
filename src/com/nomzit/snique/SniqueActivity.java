@@ -12,7 +12,6 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.security.InvalidKeyException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -30,16 +29,19 @@ import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicHeader;
 
 import android.app.Activity;
-import android.app.Notification;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.IBinder;
+import android.os.Message;
+import android.os.Messenger;
+import android.os.RemoteException;
 import android.provider.Settings;
 import android.util.Log;
 import android.webkit.CacheManager;
@@ -47,38 +49,37 @@ import android.webkit.WebView;
 
 public class SniqueActivity extends Activity {
 	private WebView wv;
-
-	private static final byte keyRaw[] = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, (byte) 0x88, (byte) 0x99, (byte) 0xaa, (byte) 0xbb, (byte) 0xcc,
-			(byte) 0xdd, (byte) 0xee, (byte) 0xff };
-	
-	private SniqueMessageDecoder decoder;
+	private Messenger findMessageServiceMessenger;
 
 	/** Called when the activity is first created. */
 	@Override
-	public void onCreate(Bundle savedInstanceState) {
+	public void onCreate(Bundle savedInstanceState)
+	{
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
+		bindService(new Intent(this, LookForSniqueMessageService.class), new ServiceConnection()
+		{
+			
+			public void onServiceDisconnected(ComponentName name)
+			{
+				findMessageServiceMessenger = null;
+			}
+			
+			public void onServiceConnected(ComponentName name, IBinder service)
+			{
+				findMessageServiceMessenger = new Messenger(service);
+				String url = "http://blog.nomzit.com/snique/";
+				new NetworkTask().execute(url);
+			}
+		},
+	            Context.BIND_AUTO_CREATE);
 
 		this.setTitle(R.string.app_name);
-		try
-		{
-			decoder = new SniqueMessageDecoder(keyRaw);
-		}
-		catch (WillNeverWorkException e)
-		{
-			Log.e("SniqueActivity", "Could not create decoder",e);
-			System.exit(4);
-		}
 
 		wv = (WebView) findViewById(R.id.webView1);
 		wv.getSettings().setJavaScriptEnabled(true);
 		SniqueWebViewClient wvc = new SniqueWebViewClient(this);
 		wv.setWebViewClient(wvc);
-
-		String url = "http://blog.nomzit.com/snique/";
-
-		// Get HTML and decode outside of UI thread to avoid blocking UI.
-		new NetworkTask().execute(url);
 	}
 
 	protected void pageLoading(SniqueWebViewClient wvc, Bitmap favicon) {
@@ -99,26 +100,12 @@ public class SniqueActivity extends Activity {
 		}
 	}
 
-	private void displayData(SniqueMessage message)
+	public void resetTitle()
 	{
-		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-		Notification notification = new Notification();
-		notification.when = System.currentTimeMillis();
-		notification.defaults = 0;
-		notification.flags = Notification.FLAG_AUTO_CANCEL;
-		notification.icon = R.drawable.statusbar;
-		Intent destroyMessageIntent = new Intent(this,DestroySniqueNotificationService.class);
-		destroyMessageIntent.putExtra(DestroySniqueNotificationService.MESSAGE_ID,message.getId());
-		PendingIntent pi = PendingIntent.getService(this, 0, destroyMessageIntent, 0);
-		notification.setLatestEventInfo(this, "snique", message.getMessage(), pi);
-		notificationManager.notify(message.getId(), notification);
+		this.setTitle(((WebView)findViewById(R.id.webView1)).getTitle());
 	}
 
-	public void resetTitle() {
-		this.setTitle(R.string.app_name);
-	}
-
-	public SniqueMessage decodeData(String html) throws InvalidKeyException, NoMessageException, WillNeverWorkException
+	public void decodeData(String html)
 	{
 		Log.d("SniqueActivity", "decodeData");
 		Pattern findsrc = Pattern.compile("src\\s*=\\s*['\"]([^']*)['\"]");
@@ -127,7 +114,7 @@ public class SniqueActivity extends Activity {
 		boolean hassrc = srcMatcher.find();
 		if (!hassrc) {
 			Log.d("SniqueActivity", "No src tags");
-			return null;
+			return;
 		}
 
 		List<String> urls = new ArrayList<String>();
@@ -189,13 +176,25 @@ public class SniqueActivity extends Activity {
 			if (newFragment.length > 0)
 				message[messageIndex++] = newFragment;
 		}
-		return decoder.decodeMessage(new CodedMessage(message));
+		CodedMessage coded = new CodedMessage(message);
+		Message msg = Message.obtain(null, LookForSniqueMessageService.LOOK_FOR_SNIQUE_MESSAGE);
+		Bundle bundle = new Bundle();
+		coded.addToBundle(bundle);
+		msg.setData(bundle);
+		try
+		{
+			findMessageServiceMessenger.send(msg);
+		}
+		catch (RemoteException e)
+		{
+			Log.e("SniqueActivity","Remote Exception",e);
+		}
 	}
 
-	protected class NetworkTask extends AsyncTask<String, Void, SniqueMessage>
+	protected class NetworkTask extends AsyncTask<String, Void, Void>
 	{
 		@Override
-		protected SniqueMessage doInBackground(String... params)
+		protected Void doInBackground(String... params)
 		{
 			// Retrieve HTML source from URL being loaded
 			String url = params[0];
@@ -297,35 +296,8 @@ public class SniqueActivity extends Activity {
 			wv.loadDataWithBaseURL(url, html, mimeType, charSet, null);
 
 			// Check for data to decode
-			SniqueMessage data = null;
-			try
-			{
-				data = decodeData(html);
-			}
-			catch (InvalidKeyException e)
-			{
-				Log.e("SniqueActivity - Network Task", "Invalid Key", e);
-			}
-			catch (NoMessageException e)
-			{
-				Log.d("SniqueActivity - Network Task", "No Message");
-			}
-			catch (WillNeverWorkException e)
-			{
-				Log.e("SniqueActivity - Network Task", "Decoding will never work", e);
-			}
-			return data;
-		}
-
-		@Override
-		protected void onPostExecute(SniqueMessage message) {
-			if (message != null) {
-				// We have a decoded message, return to UI thread
-				displayData(message);
-			} else {
-				// No message detected, so reset the title of the activity
-				resetTitle();
-			}
+			decodeData(html);
+			return null;
 		}
 	}
 }
