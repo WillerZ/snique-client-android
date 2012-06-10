@@ -19,6 +19,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service android:name="DestroySniqueNotificationService" android:enabled="true" android:icon="@drawable/statusbar" android:exported="false"></service>
     </application>
 
 </manifest>

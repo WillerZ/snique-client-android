@@ -34,6 +34,7 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
@@ -106,10 +107,11 @@ public class SniqueActivity extends Activity {
 		notification.defaults = 0;
 		notification.flags = Notification.FLAG_AUTO_CANCEL;
 		notification.icon = R.drawable.statusbar;
-		PendingIntent pi = PendingIntent.getBroadcast(this, 2, getIntent(), 0);
+		Intent destroyMessageIntent = new Intent(this,DestroySniqueNotificationService.class);
+		destroyMessageIntent.putExtra(DestroySniqueNotificationService.MESSAGE_ID,message.getId());
+		PendingIntent pi = PendingIntent.getService(this, 0, destroyMessageIntent, 0);
 		notification.setLatestEventInfo(this, "snique", message.getMessage(), pi);
 		notificationManager.notify(message.getId(), notification);
-		pi.cancel();
 	}
 
 	public void resetTitle() {
