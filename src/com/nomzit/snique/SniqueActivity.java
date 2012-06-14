@@ -87,7 +87,7 @@ public class SniqueActivity extends Activity {
 			Method getActionBarMethod = this.getClass().getMethod("getActionBar", (Class<?>) null);
 			Object actionBar = getActionBarMethod.invoke(this, (Object) null);
 			Method setIconMethod = actionBar.getClass().getMethod("setIcon", Drawable.class);
-			setIconMethod.invoke(actionBar, new BitmapDrawable(favicon));
+			setIconMethod.invoke(actionBar, new BitmapDrawable(getResources(),favicon));
 		} catch (SecurityException e) {
 			Log.e("SniqueActivity", "Security exception getting getActionBar() method", e);
 		} catch (NoSuchMethodException e) {

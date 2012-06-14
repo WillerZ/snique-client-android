@@ -8,6 +8,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -20,37 +21,27 @@ public class LookForSniqueMessageService extends Service
 	static final int LOOK_FOR_SNIQUE_MESSAGE = 1;
 	final Messenger messenger = new Messenger(new IncomingHandler());
 	
-	class MessageFinder extends Thread
+	abstract class AbstractMessageFinder extends Thread
 	{
 		private SniqueMessageDecoder decoder;
 		private CodedMessage coded;
-		private Context context;
 		
-		MessageFinder(Context context, SniqueMessageDecoder decoder, CodedMessage coded)
+		AbstractMessageFinder(SniqueMessageDecoder decoder, CodedMessage coded)
 		{
 			super();
-			this.context = context;
 			this.decoder = decoder;
 			this.coded = coded;
 		}
 		
+		abstract void notifyMessage(SniqueMessage message);
+				
 		@Override
 		public void run()
 		{
 			try
 			{
 				SniqueMessage message = decoder.decodeMessage(coded);
-				NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-				Notification notification = new Notification();
-				notification.when = System.currentTimeMillis();
-				notification.defaults = 0;
-				notification.flags = Notification.FLAG_AUTO_CANCEL;
-				notification.icon = R.drawable.statusbar;
-				Intent destroyMessageIntent = new Intent(context,DestroySniqueNotificationService.class);
-				destroyMessageIntent.putExtra(DestroySniqueNotificationService.MESSAGE_ID,message.getId());
-				PendingIntent pi = PendingIntent.getService(context, 0, destroyMessageIntent, 0);
-				notification.setLatestEventInfo(context, "snique", message.getMessage(), pi);
-				notificationManager.notify(message.getId(), notification);
+				this.notifyMessage(message);
 			}
 			catch (InvalidKeyException e)
 			{
@@ -66,6 +57,78 @@ public class LookForSniqueMessageService extends Service
 		}
 	}
 	
+	private class CupcakeMessageFinder extends AbstractMessageFinder
+	{
+		public CupcakeMessageFinder(SniqueMessageDecoder decoder, CodedMessage coded)
+		{
+			super(decoder, coded);
+		}
+		
+		@SuppressWarnings("deprecation")
+		@Override
+		void notifyMessage(SniqueMessage message)
+		{
+			NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+			Intent destroyMessageIntent = new Intent(LookForSniqueMessageService.this, DestroySniqueNotificationService.class);
+			destroyMessageIntent.putExtra(DestroySniqueNotificationService.MESSAGE_ID,message.getId());
+			PendingIntent pi = PendingIntent.getService(LookForSniqueMessageService.this, 0, destroyMessageIntent, 0);
+
+			Notification notification = new Notification();
+			notification.when = System.currentTimeMillis();
+			notification.defaults = 0;
+			notification.flags = Notification.FLAG_AUTO_CANCEL;
+			notification.icon = R.drawable.statusbar;
+			notification.setLatestEventInfo(LookForSniqueMessageService.this, "snique", message.getMessage(), pi);
+			notificationManager.notify(message.getId(), notification);
+		}
+	}
+	
+	private class HoneycombMessageFinder extends AbstractMessageFinder
+	{
+		public HoneycombMessageFinder(SniqueMessageDecoder decoder, CodedMessage coded)
+		{
+			super(decoder, coded);
+		}
+		
+		@Override
+		void notifyMessage(SniqueMessage message)
+		{
+			NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+			Intent destroyMessageIntent = new Intent(LookForSniqueMessageService.this,DestroySniqueNotificationService.class);
+			destroyMessageIntent.putExtra(DestroySniqueNotificationService.MESSAGE_ID,message.getId());
+			PendingIntent pi = PendingIntent.getService(LookForSniqueMessageService.this, 0, destroyMessageIntent, 0);
+
+			Notification.Builder builder = new Notification.Builder(LookForSniqueMessageService.this);
+			builder.setWhen(System.currentTimeMillis())
+				   .setDefaults(0)
+				   .setContentIntent(pi)
+				   .setOnlyAlertOnce(true)
+				   .setContentText(" ")
+				   .setSmallIcon(R.drawable.statusbar)
+				   ;
+			
+			notificationManager.notify(message.getId(), builder.getNotification());
+
+			builder = new Notification.Builder(LookForSniqueMessageService.this);
+			builder.setWhen(System.currentTimeMillis())
+				   .setDefaults(0)
+				   .setContentIntent(pi)
+				   .setOnlyAlertOnce(true)
+				   .setContentText(message.getMessage())
+				   .setSmallIcon(R.drawable.statusbar);
+
+			notificationManager.notify(message.getId(), builder.getNotification());
+		}
+	}
+	
+	private AbstractMessageFinder getMessageFinder(SniqueMessageDecoder decoder, CodedMessage coded)
+	{
+		final int Version = Build.VERSION.SDK_INT;
+		if (Version < Build.VERSION_CODES.HONEYCOMB)
+			return this.new CupcakeMessageFinder(decoder, coded);
+		return this.new HoneycombMessageFinder(decoder, coded);
+	}
+
 	class IncomingHandler extends Handler
 	{
 		SniqueMessageDecoder decoder;
@@ -96,7 +159,7 @@ public class LookForSniqueMessageService extends Service
 			}
 			Bundle bundle = msg.getData();
 			CodedMessage message = new CodedMessage(bundle);
-			MessageFinder finder = new MessageFinder(getApplicationContext(), decoder, message);
+			AbstractMessageFinder finder = getMessageFinder(decoder, message);
 			finder.start();
 		}
 	}
